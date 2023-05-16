@@ -1,0 +1,99 @@
+# Template docker-push
+
+# This template allows you to build and push your docker image to a Docker Hub account.
+# The workflow allows running tests, code linting and security scans on feature branches (as well as master).
+# The docker image will be validated and pushed to the docker registry after the code is merged to master.
+
+# Prerequisites: $DOCKER_HUB_PASSWORD, $DOCKER_HUB_USERNAME, $DOCKER_USERNAME, $DOCKER_PASSWORD, $DOCKER_NAME, $KUBERNETES_BASE64_CONFIG setup as deployment variables
+
+#image: atlassian/default-image:2
+image: node:16.16.0
+
+definitions:
+  # Article ref:
+  # https://community.atlassian.com/t5/Bitbucket-questions/Container-Build-exceeded-memory-limit/qaq-p/1986822
+  services:
+    docker:
+      memory: 2000  # up memory for docker-in-docker from 1GB to 2GB
+    docker-with-large-memory:
+      memory: 7000
+      type: docker
+
+  buildImage: &buildImage
+    name: Build and Push Docker Image - Front Web
+    script:
+      #- rm -rf node_modules && rm package-lock.json
+      # - rm -rf node_modules
+      # - npm cache clean --force
+      # - npm install
+      # - while true; do date && ps -aux && sleep 5 && echo ""; done &
+      # - while true; do date && echo "Memory usage in megabytes:" && echo $((`cat /sys/fs/cgroup/memory/memory.memsw.usage_in_bytes | awk '{print $1}'`/1048576)) && echo "" && sleep 5; done &
+      # - npm run build:$BITBUCKET_BRANCH
+      # - export NODE_OPTIONS=--max-old-space-size=6400
+      # Create docker URI
+      - export VERSION=$BITBUCKET_BRANCH-$BITBUCKET_BUILD_NUMBER
+      - export BRANCH=$BITBUCKET_BRANCH
+      - export DOCKER_PUSH_URI=$DOCKER_USERNAME/$DOCKER_NAME:$VERSION
+      - export DOCKER_URI=$DOCKER_NAME
+      - export ENVIRONMENT=$BITBUCKET_BRANCH
+      # Build the image
+      - docker build --build-arg ENVIRONMENT -f deployment/Dockerfile -t $DOCKER_URI .
+      - echo "$DOCKER_HUB_PASSWORD" | docker login --username $DOCKER_HUB_USERNAME --password-stdin
+      #- docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+      - docker tag "$DOCKER_URI" "$DOCKER_PUSH_URI"
+      - docker push "$DOCKER_PUSH_URI"
+    size: 2x
+    services: [docker-with-large-memory]      
+
+
+  deploy: &deploy
+    name: Deploy develop image to kube
+    # deployment: production
+    # trigger: manual
+    script:
+      - apt update -y
+      - apt install python3-pip -y
+      - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+      - chmod +x ./kubectl
+      - mv ./kubectl /usr/local/bin/kubectl
+      - export VERSION=$BITBUCKET_BRANCH-$BITBUCKET_BUILD_NUMBER
+      - export NAMESPACE=indusur
+      - export BRANCH=$BITBUCKET_BRANCH
+      - sed  -e "s|#{NAMESPACE}#|$NAMESPACE|" -e "s|#{BRANCH}#|$BRANCH|" -e "s|#{DOCKER_USERNAME}#|$DOCKER_USERNAME|" -e "s|#{DOCKER_NAME}#|$DOCKER_NAME|" -e "s|#{VERSION}#|$VERSION|" k8s.tpl.yml > k8s.yml
+      - echo $BRANCH $DOCKER_USERNAME $DOCKER_NAME $VERSION
+      - cat k8s.yml
+      - echo "$KUBERNETES_BASE64_CONFIG" | base64 --decode > config.yml
+      - kubectl --kubeconfig=config.yml apply -f k8s.yml
+    services:
+      - docker
+
+
+  deployTest: &deployTest
+    name: Deploy test image to kube
+    # deployment: production
+    # trigger: manual
+    script:
+      - apt update -y
+      - apt install python3-pip -y
+      - curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+      - chmod +x ./kubectl
+      - mv ./kubectl /usr/local/bin/kubectl
+      - export VERSION=$BITBUCKET_BRANCH-$BITBUCKET_BUILD_NUMBER
+      - export NAMESPACE=indusur-test
+      - export BRANCH=$BITBUCKET_BRANCH
+      - sed  -e "s|#{NAMESPACE}#|$NAMESPACE|" -e "s|#{BRANCH}#|$BRANCH|" -e "s|#{DOCKER_USERNAME}#|$DOCKER_USERNAME|" -e "s|#{DOCKER_NAME}#|$DOCKER_NAME|" -e "s|#{VERSION}#|$VERSION|" k8s.tpl.yml > k8s.yml
+      - echo $BRANCH $DOCKER_USERNAME $DOCKER_NAME $VERSION
+      - cat k8s.yml
+      - echo "$KUBERNETES_BASE64_CONFIG" | base64 --decode > config.yml
+      - kubectl --kubeconfig=config.yml apply -f k8s.yml
+    services:
+      - docker
+
+pipelines:
+  branches:
+    develop:
+      - step: *buildImage
+      - step: *deploy
+    test:
+      - step: *buildImage
+      - step: *deployTest

@@ -1,0 +1,59 @@
+# Initial Steps:
+# To load all projects we need run:
+# - first time apply deployment/kubernetes/namespace-indusur.yml
+# - finish apply the config this file k8s.yml
+
+#################################
+#      Front Web Deployment     #
+#################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indusur-front
+  namespace: #{NAMESPACE}#
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: indusur-front
+  template:
+    metadata:
+      labels:
+        app: indusur-front
+    spec:
+      imagePullSecrets: # if using a private image
+      - name: dockerhub-user
+      containers:
+      - name: indusur-front
+        image: #{DOCKER_USERNAME}#/#{DOCKER_NAME}#:#{VERSION}#
+        env:
+        - name: "ENVIRONMENT"
+          value: "#{BRANCH}#"
+        ports:
+        - containerPort: 3000
+        #- containerPort: 443
+---
+
+##########################################
+#        Expose K8S Front Web App        #
+##########################################
+apiVersion: v1
+kind: Service
+metadata:
+  name: indusur-front-web
+  namespace: #{NAMESPACE}#
+spec:
+  selector:
+    app: indusur-front
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 3000
+  - name: http-port
+    port: 4200
+    targetPort: 3000
+  # - name: https
+  #   port: 443
+  #   targetPort: 443
+---

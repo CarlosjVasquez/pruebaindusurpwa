@@ -1,0 +1,33 @@
+@font-face {
+  font-family: eina;
+  src: url(../public/fonts/eina/Eina02-Regular.ttf) format('truetype');
+  font-weight: 400;
+  font-stretch: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: eina;
+  src: url(../public/fonts/eina/Eina02-Bold.ttf) format('truetype');
+  font-weight: 700;
+  font-stretch: normal;
+  font-style: normal;
+}
+
+$body-bg: #f7f7f7;
+$primary: #4544ed;
+
+@import '~bootstrap/scss/bootstrap';
+@import '~swiper/scss';
+@import '~swiper/scss/pagination';
+
+h1,
+h2,
+h5,
+p {
+  margin-bottom: 0;
+}
+
+.swiper-slide {
+  margin-bottom: 50px;
+}

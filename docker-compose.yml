@@ -1,0 +1,28 @@
+version: '3.4'
+services:
+  indusur:
+    container_name: indusur
+    build:
+      context: .
+      dockerfile: deployment/Dockerfile
+      args:
+        ENVIRONMENT: develop
+    environment:
+      #NODE_ENV: production
+      ENVIRONMENT: develop
+      #volumes:
+      #- .:/app
+      #- /app/node_modules
+    ports:
+      - '4200:3000'
+      - '443:443'
+      - '80:80'
+    stdin_open: true
+    restart: on-failure
+    networks:
+      - dpw-network
+
+networks:
+  dpw-network:
+    name: dpw-network
+    driver: bridge
